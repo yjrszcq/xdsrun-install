@@ -447,11 +447,12 @@ main() {
     ensure_deps
     enable_cron_service
 
+    install_xdsrun_bin
+    write_watchdog_script
+
     prompt_config
 
-    install_xdsrun_bin
     write_watchdog_config
-    write_watchdog_script
     install_cron
 
     echo
