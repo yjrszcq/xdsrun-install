@@ -546,4 +546,10 @@ sudo ./install.sh
 4. 如果 watchdog 一直没有日志，可能是因为网络一直正常，脚本 ping 成功后直接退出；
 5. 如果日志中出现登录失败，请检查账号、密码以及 `xdsrun` 是否可正常使用。
 
+## 致谢
 
+本项目中的 `xdsrun` 程序来自 [NanCunChild/xdsrun-login](https://github.com/NanCunChild/xdsrun-login)。
+
+感谢原作者开源的 `xdsrun-login` 项目。
+
+本仓库仅在此基础上提供 Linux 下的自动安装、配置文件生成、watchdog 网络检测以及 crontab 定时执行等辅助脚本。
