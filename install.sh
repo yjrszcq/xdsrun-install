@@ -237,19 +237,19 @@ parse_interval_to_cron() {
 
 prompt_config() {
     echo
-    read -r -p "请输入用户名: " INPUT_USERNAME
+    read -r -p "请输入校园网用户名: " INPUT_USERNAME
 
     while [ -z "${INPUT_USERNAME}" ]; do
         echo "用户名不能为空。"
-        read -r -p "请输入用户名: " INPUT_USERNAME
+        read -r -p "请输入校园网用户名: " INPUT_USERNAME
     done
 
-    read -r -s -p "请输入密码: " INPUT_PASSWORD
+    read -r -s -p "请输入校园网密码: " INPUT_PASSWORD
     echo
 
     while [ -z "${INPUT_PASSWORD}" ]; do
         echo "密码不能为空。"
-        read -r -s -p "请输入密码: " INPUT_PASSWORD
+        read -r -s -p "请输入校园网密码: " INPUT_PASSWORD
         echo
     done
 
