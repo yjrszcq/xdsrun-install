@@ -320,7 +320,7 @@ write_watchdog_config() {
 # 由 install.sh 生成
 
 # ====== PING 配置 ======
-PING_TARGET="www.baidu.com"
+PING_TARGET="223.5.5.5"
 PING_COUNT=3
 PING_TIMEOUT=3
 
