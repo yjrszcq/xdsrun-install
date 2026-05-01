@@ -144,7 +144,7 @@ sudo ./install.sh
 # 由 install.sh 生成
 
 # ====== PING 配置 ======
-PING_TARGET="www.baidu.com"
+PING_TARGET="223.5.5.5"
 PING_COUNT=3
 PING_TIMEOUT=3
 
@@ -160,7 +160,7 @@ LOG_DIR="/opt/xdsrun/log"
 
 | 配置项            | 说明                  | 默认值               |
 | -------------- | ------------------- | ----------------- |
-| `PING_TARGET`  | 用于检测网络是否在线的目标地址     | `www.baidu.com`   |
+| `PING_TARGET`  | 用于检测网络是否在线的目标地址     | `223.5.5.5`   |
 | `PING_COUNT`   | ping 包数量            | `3`               |
 | `PING_TIMEOUT` | 每个 ping 包等待超时时间，单位秒 | `3`               |
 | `USERNAME`     | 西电校园网登录用户名        | 安装时输入             |
@@ -472,7 +472,7 @@ ping 成功 → 网络在线 → 直接退出
 
 ---
 
-### 4. 为什么使用 [www.baidu.com](http://www.baidu.com) 作为默认 ping 目标？
+### 4. 为什么使用 `223.5.5.5` 作为默认 ping 目标？
 
 因为这是一个默认的网络连通性检测目标。
 
@@ -482,11 +482,19 @@ ping 成功 → 网络在线 → 直接退出
 sudo nano /opt/xdsrun/xdsrun-watchdog.conf
 ```
 
-改成其他地址，例如：
+改成其他 IP 地址，例如：
 
 ```bash
-PING_TARGET="223.5.5.5"
+PING_TARGET="119.29.29.29"
 ```
+
+不建议改成域名，例如：
+
+```bash
+PING_TARGET="www.baidu.com"
+```
+
+因为部分代理软件开启 TUN 后可能会启用 Fake-IP，导致即使真实网络断开，域名仍可能被解析到 Fake-IP 并被 `ping` 通，从而让脚本误判为网络正常。
 
 ---
 
