@@ -18,8 +18,6 @@ WATCHDOG_CONFIG="${XDSRUN_DIR}/xdsrun-watchdog.conf"
 CRON_MARK_BEGIN="# >>> xdsrun-watchdog cron >>>"
 CRON_MARK_END="# <<< xdsrun-watchdog cron <<<"
 
-LANG_CODE="zh"
-
 # Runtime arch detection
 ARCH=""
 XDSRUN_PKG_ARCH=""
