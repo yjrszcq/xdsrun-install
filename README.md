@@ -2,7 +2,7 @@
 
 本项目用于在 Linux 系统上自动安装 [`xdsrun`](https://github.com/NanCunChild/xdsrun-login) 并配置专用的断网自动重连脚本。
 
-当前安装脚本支持中文和 English。运行后会先让用户选择语言，后续安装提示、生成的 `xdsrun-watchdog` 注释与报错信息、以及 `xdsrun-watchdog.conf` 注释都会跟随所选语言切换。
+支持中英文双语。运行安装脚本后可以选择语言。
 
 ## 一键安装命令
 
