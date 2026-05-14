@@ -3,11 +3,9 @@ set -euo pipefail
 
 # ============================================================
 # xdsrun install.sh
-# 需要管理员权限运行：
-#   sudo ./install.sh
 # ============================================================
 
-# ====== 内置安装配置 ======
+# ====== Built-in installation config ======
 XDSRUN_DIR="/opt/xdsrun"
 XDSRUN_VERSION="1.1.3"
 
@@ -20,19 +18,258 @@ WATCHDOG_CONFIG="${XDSRUN_DIR}/xdsrun-watchdog.conf"
 CRON_MARK_BEGIN="# >>> xdsrun-watchdog cron >>>"
 CRON_MARK_END="# <<< xdsrun-watchdog cron <<<"
 
-# 运行时根据架构自动设置
+LANG_CODE="zh"
+
+# Runtime arch detection
 ARCH=""
 XDSRUN_PKG_ARCH=""
 ZIP_FILE=""
 XDSRUN_URL=""
 
-# crontab 配置，由用户输入的间隔解析生成
+# crontab config, parsed from user input interval
 CRON_EXPR=""
 INTERVAL_DESC=""
 INPUT_INTERVAL=""
+INPUT_USERNAME=""
+INPUT_PASSWORD=""
 
 # ============================================================
-# 工具函数
+# i18n
+# ============================================================
+
+msg() {
+    case "$1_${LANG_CODE}" in
+        invalid_yes_no_en) printf '%s\n' 'Please enter y or n.' ;;
+        invalid_yes_no_zh) printf '%s\n' '请输入 y 或 n。' ;;
+
+        need_root_en) printf '%s\n' 'Please run with root privileges: sudo ./install.sh' ;;
+        need_root_zh) printf '%s\n' '请使用管理员权限运行：sudo ./install.sh' ;;
+
+        unsupported_arch_en) printf '%s\n' 'Unsupported CPU architecture: {arch}. Only x86_64/amd64 and aarch64/arm64 are supported.' ;;
+        unsupported_arch_zh) printf '%s\n' '不支持的 CPU 架构：{arch}。当前仅支持 x86_64/amd64 和 aarch64/arm64。' ;;
+
+        detected_arch_en) printf '%s\n' 'Detected system architecture: {arch}, package arch: {pkg_arch}' ;;
+        detected_arch_zh) printf '%s\n' '检测到系统架构：{arch}，将使用安装包架构：{pkg_arch}' ;;
+
+        download_url_en) printf '%s\n' 'Download URL: {url}' ;;
+        download_url_zh) printf '%s\n' '下载链接：{url}' ;;
+
+        pkg_manager_unknown_en) printf '%s\n' 'Unable to detect package manager. Please install manually: {pkgs}' ;;
+        pkg_manager_unknown_zh) printf '%s\n' '无法识别包管理器，请手动安装：{pkgs}' ;;
+
+        installing_deps_en) printf '%s\n' 'Installing missing dependencies: {pkgs}' ;;
+        installing_deps_zh) printf '%s\n' '正在安装缺失依赖：{pkgs}' ;;
+
+        wget_unavailable_en) printf '%s\n' 'wget installation failed or is unavailable' ;;
+        wget_unavailable_zh) printf '%s\n' 'wget 安装失败或不可用' ;;
+
+        unzip_unavailable_en) printf '%s\n' 'unzip installation failed or is unavailable' ;;
+        unzip_unavailable_zh) printf '%s\n' 'unzip 安装失败或不可用' ;;
+
+        crontab_unavailable_en) printf '%s\n' 'crontab is unavailable. Please check if cron/cronie is installed.' ;;
+        crontab_unavailable_zh) printf '%s\n' 'crontab 不可用，请检查 cron/cronie 是否安装成功' ;;
+
+        username_prompt_en) printf '%s\n' 'Enter Xidian campus network username:' ;;
+        username_prompt_zh) printf '%s\n' '请输入西电校园网用户名:' ;;
+
+        username_empty_en) printf '%s\n' 'Username cannot be empty.' ;;
+        username_empty_zh) printf '%s\n' '用户名不能为空。' ;;
+
+        password_prompt_en) printf '%s\n' 'Enter Xidian campus network password:' ;;
+        password_prompt_zh) printf '%s\n' '请输入西电校园网密码:' ;;
+
+        password_empty_en) printf '%s\n' 'Password cannot be empty.' ;;
+        password_empty_zh) printf '%s\n' '密码不能为空。' ;;
+
+        interval_intro_en) printf '%s\n' 'Enter watchdog execution interval:' ;;
+        interval_intro_zh) printf '%s\n' '请输入 watchdog 执行间隔：' ;;
+
+        interval_format_hint_en) printf '%s\n' '  number + time unit (m, h, d)' ;;
+        interval_format_hint_zh) printf '%s\n' '  数字+时间单位（m、h、d）' ;;
+
+        interval_unit_hint_en) printf '%s\n' '  m = minutes / h = hours / d = days' ;;
+        interval_unit_hint_zh) printf '%s\n' '  m 表示分钟 / h 表示小时 / d 表示天' ;;
+
+        interval_prompt_en) printf '%s\n' 'Execution interval [default: 5m]:' ;;
+        interval_prompt_zh) printf '%s\n' '执行间隔 [默认: 5m]:' ;;
+
+        interval_invalid_en) printf '%s\n' 'Invalid interval format. Please use a format like 5m, 2h, 1d.' ;;
+        interval_invalid_zh) printf '%s\n' '执行间隔格式错误。请输入类似 5m、2h、1d 的格式。' ;;
+
+        interval_constraints_en) printf '%s\n' 'Constraints: minutes 1-59, hours 1-23, days must be a positive integer.' ;;
+        interval_constraints_zh) printf '%s\n' '限制：分钟 1-59，小时 1-23，天为正整数。' ;;
+
+        interval_desc_minutes_en) printf '%s\n' 'every {num} minute(s)' ;;
+        interval_desc_minutes_zh) printf '%s\n' '每 {num} 分钟' ;;
+
+        interval_desc_hours_en) printf '%s\n' 'every {num} hour(s)' ;;
+        interval_desc_hours_zh) printf '%s\n' '每 {num} 小时' ;;
+
+        interval_desc_days_en) printf '%s\n' 'every {num} day(s)' ;;
+        interval_desc_days_zh) printf '%s\n' '每 {num} 天' ;;
+
+        xdsrun_exists_en) printf '%s\n' 'xdsrun already exists: {path}' ;;
+        xdsrun_exists_zh) printf '%s\n' '检测到 xdsrun 已存在：{path}' ;;
+
+        reinstall_xdsrun_prompt_en) printf '%s\n' 'Re-download and install xdsrun?' ;;
+        reinstall_xdsrun_prompt_zh) printf '%s\n' '是否重新下载并安装 xdsrun？' ;;
+
+        reinstalling_xdsrun_en) printf '%s\n' 'Will re-install xdsrun' ;;
+        reinstalling_xdsrun_zh) printf '%s\n' '将重新安装 xdsrun' ;;
+
+        skip_reinstall_xdsrun_en) printf '%s\n' 'Skipping xdsrun re-installation, ensuring it is executable' ;;
+        skip_reinstall_xdsrun_zh) printf '%s\n' '跳过 xdsrun 重新安装，仅确保其具有可执行权限' ;;
+
+        downloading_xdsrun_en) printf '%s\n' 'Downloading xdsrun: {url}' ;;
+        downloading_xdsrun_zh) printf '%s\n' '下载 xdsrun：{url}' ;;
+
+        extracting_zip_en) printf '%s\n' 'Extracting: {path}' ;;
+        extracting_zip_zh) printf '%s\n' '解压：{path}' ;;
+
+        xdsrun_not_found_after_extract_en) printf '%s\n' 'xdsrun binary not found after extraction' ;;
+        xdsrun_not_found_after_extract_zh) printf '%s\n' '解压后没有找到 xdsrun 二进制程序' ;;
+
+        xdsrun_installed_en) printf '%s\n' 'xdsrun installed to: {path}' ;;
+        xdsrun_installed_zh) printf '%s\n' 'xdsrun 已安装到：{path}' ;;
+
+        writing_watchdog_config_en) printf '%s\n' 'Writing watchdog config file: {path}' ;;
+        writing_watchdog_config_zh) printf '%s\n' '写入 watchdog 配置文件：{path}' ;;
+
+        watchdog_exists_en) printf '%s\n' 'xdsrun-watchdog already exists: {path}' ;;
+        watchdog_exists_zh) printf '%s\n' '检测到 xdsrun-watchdog 已存在：{path}' ;;
+
+        regenerate_watchdog_prompt_en) printf '%s\n' 'Re-generate xdsrun-watchdog script?' ;;
+        regenerate_watchdog_prompt_zh) printf '%s\n' '是否重新生成 xdsrun-watchdog 脚本？' ;;
+
+        regenerating_watchdog_en) printf '%s\n' 'Will re-generate xdsrun-watchdog' ;;
+        regenerating_watchdog_zh) printf '%s\n' '将重新生成 xdsrun-watchdog' ;;
+
+        skip_regenerate_watchdog_en) printf '%s\n' 'Skipping xdsrun-watchdog re-generation, ensuring it is executable' ;;
+        skip_regenerate_watchdog_zh) printf '%s\n' '跳过 xdsrun-watchdog 重新生成，仅确保其具有可执行权限' ;;
+
+        writing_watchdog_script_en) printf '%s\n' 'Writing watchdog script: {path}' ;;
+        writing_watchdog_script_zh) printf '%s\n' '写入 watchdog 脚本：{path}' ;;
+
+        cron_configuring_en) printf '%s\n' 'Configuring root crontab to run watchdog {interval}' ;;
+        cron_configuring_zh) printf '%s\n' '配置 root crontab，{interval}执行一次 watchdog' ;;
+
+        cron_configured_en) printf '%s\n' 'crontab configured: {line}' ;;
+        cron_configured_zh) printf '%s\n' 'crontab 已配置：{line}' ;;
+
+        installation_complete_en) printf '%s\n' 'Installation complete.' ;;
+        installation_complete_zh) printf '%s\n' '安装完成。' ;;
+
+        system_arch_en) printf '%s\n' 'System architecture: {arch}' ;;
+        system_arch_zh) printf '%s\n' '系统架构：{arch}' ;;
+
+        package_arch_en) printf '%s\n' 'Package architecture: {arch}' ;;
+        package_arch_zh) printf '%s\n' '安装包架构：{arch}' ;;
+
+        xdsrun_binary_en) printf '%s\n' 'xdsrun binary: {path}' ;;
+        xdsrun_binary_zh) printf '%s\n' 'xdsrun 程序：{path}' ;;
+
+        watchdog_script_label_en) printf '%s\n' 'watchdog script: {path}' ;;
+        watchdog_script_label_zh) printf '%s\n' 'watchdog 脚本：{path}' ;;
+
+        watchdog_config_label_en) printf '%s\n' 'watchdog config: {path}' ;;
+        watchdog_config_label_zh) printf '%s\n' 'watchdog 配置：{path}' ;;
+
+        log_dir_label_en) printf '%s\n' 'Log directory: {path}' ;;
+        log_dir_label_zh) printf '%s\n' '日志目录：{path}' ;;
+
+        execution_interval_label_en) printf '%s\n' 'Execution interval: {interval}' ;;
+        execution_interval_label_zh) printf '%s\n' '执行间隔：{interval}' ;;
+
+        manual_test_en) printf '%s\n' 'Manual test:' ;;
+        manual_test_zh) printf '%s\n' '可手动测试：' ;;
+
+        view_root_crontab_en) printf '%s\n' 'View root crontab:' ;;
+        view_root_crontab_zh) printf '%s\n' '查看 root crontab：' ;;
+
+        config_header_en) printf '%s\n' '# xdsrun-watchdog configuration' ;;
+        config_header_zh) printf '%s\n' '# xdsrun-watchdog 配置文件' ;;
+
+        config_generated_by_en) printf '%s\n' '# Generated by install.sh' ;;
+        config_generated_by_zh) printf '%s\n' '# 由 install.sh 生成' ;;
+
+        config_ping_section_en) printf '%s\n' '# ====== PING configuration ======' ;;
+        config_ping_section_zh) printf '%s\n' '# ====== PING 配置 ======' ;;
+
+        config_login_section_en) printf '%s\n' '# ====== Login configuration ======' ;;
+        config_login_section_zh) printf '%s\n' '# ====== 登录配置 ======' ;;
+
+        config_log_section_en) printf '%s\n' '# ====== LOG configuration ======' ;;
+        config_log_section_zh) printf '%s\n' '# ====== LOG 配置 ======' ;;
+
+        watchdog_comment_en) printf '%s\n' '# Auto-detect network status, login via xdsrun when offline' ;;
+        watchdog_comment_zh) printf '%s\n' '# 自动检测网络，断网时调用 xdsrun 登录' ;;
+
+        watchdog_paths_section_en) printf '%s\n' '# ====== Built-in path config ======' ;;
+        watchdog_paths_section_zh) printf '%s\n' '# ====== 脚本内置路径配置 ======' ;;
+
+        watchdog_load_config_en) printf '%s\n' '# ====== Load config file ======' ;;
+        watchdog_load_config_zh) printf '%s\n' '# ====== 加载配置文件 ======' ;;
+
+        watchdog_basic_checks_en) printf '%s\n' '# ====== Basic checks ======' ;;
+        watchdog_basic_checks_zh) printf '%s\n' '# ====== 基础检查 ======' ;;
+
+        watchdog_network_check_en) printf '%s\n' '# ====== Check network connectivity ======' ;;
+        watchdog_network_check_zh) printf '%s\n' '# ====== 检测网络是否在线 ======' ;;
+
+        watchdog_log_section_en) printf '%s\n' '# ====== LOG configuration ======' ;;
+        watchdog_log_section_zh) printf '%s\n' '# ====== LOG 配置 ======' ;;
+
+        watchdog_prepare_log_en) printf '%s\n' '# ====== Prepare log ======' ;;
+        watchdog_prepare_log_zh) printf '%s\n' '# ====== 日志准备 ======' ;;
+
+        watchdog_login_en) printf '%s\n' '# ====== Login to Xidian campus network ======' ;;
+        watchdog_login_zh) printf '%s\n' '# ====== 登录西电校园网 ======' ;;
+
+        watchdog_config_missing_en) printf '%s\n' 'Config file not found: \${CONFIG_FILE}' ;;
+        watchdog_config_missing_zh) printf '%s\n' '配置文件不存在：\${CONFIG_FILE}' ;;
+
+        watchdog_ping_target_empty_en) printf '%s\n' 'PING_TARGET is empty, please check config: \${CONFIG_FILE}' ;;
+        watchdog_ping_target_empty_zh) printf '%s\n' 'PING_TARGET 为空，请检查配置文件：\${CONFIG_FILE}' ;;
+
+        watchdog_ping_count_empty_en) printf '%s\n' 'PING_COUNT is empty, please check config: \${CONFIG_FILE}' ;;
+        watchdog_ping_count_empty_zh) printf '%s\n' 'PING_COUNT 为空，请检查配置文件：\${CONFIG_FILE}' ;;
+
+        watchdog_ping_timeout_empty_en) printf '%s\n' 'PING_TIMEOUT is empty, please check config: \${CONFIG_FILE}' ;;
+        watchdog_ping_timeout_empty_zh) printf '%s\n' 'PING_TIMEOUT 为空，请检查配置文件：\${CONFIG_FILE}' ;;
+
+        watchdog_username_password_empty_en) printf '%s\n' 'USERNAME or PASSWORD is empty, please check config: \${CONFIG_FILE}' ;;
+        watchdog_username_password_empty_zh) printf '%s\n' 'USERNAME 或 PASSWORD 为空，请检查配置文件：\${CONFIG_FILE}' ;;
+
+        watchdog_log_dir_empty_en) printf '%s\n' 'LOG_DIR is empty, please check config: \${CONFIG_FILE}' ;;
+        watchdog_log_dir_empty_zh) printf '%s\n' 'LOG_DIR 为空，请检查配置文件：\${CONFIG_FILE}' ;;
+
+        watchdog_bin_missing_en) printf '%s\n' 'xdsrun does not exist or is not executable: \${XDSRUN_BIN}' ;;
+        watchdog_bin_missing_zh) printf '%s\n' 'xdsrun 不存在或不可执行：\${XDSRUN_BIN}' ;;
+
+        *)
+            printf '%s\n' "$1"
+            ;;
+    esac
+}
+
+render_msg() {
+    local text="$(
+        msg "$1"
+    )"
+    shift
+
+    local kv key value
+    for kv in "$@"; do
+        key="${kv%%=*}"
+        value="${kv#*=}"
+        text="${text//\{$key\}/$value}"
+    done
+
+    printf '%s' "${text}"
+}
+
+# ============================================================
+# Utility functions
 # ============================================================
 
 log() {
@@ -46,6 +283,14 @@ warn() {
 err() {
     echo "[ERROR] $*" >&2
     exit 1
+}
+
+log_msg() {
+    log "$(render_msg "$@")"
+}
+
+err_msg() {
+    err "$(render_msg "$@")"
 }
 
 ask_yes_no() {
@@ -62,15 +307,42 @@ ask_yes_no() {
                 return 1
                 ;;
             *)
-                echo "请输入 y 或 n。"
+                printf '%s\n' "$(render_msg invalid_yes_no)"
                 ;;
         esac
     done
 }
 
+select_language() {
+    local lang
+
+    echo "========================================"
+    echo "  xdsrun installer"
+    echo "========================================"
+    echo
+    echo "Select language:"
+    echo "  1) English"
+    echo "  2) 简体中文"
+    echo
+    read -r -p "Enter choice [1-2] (default: 2): " lang
+
+    case "${lang}" in
+        1)
+            LANG_CODE="en"
+            ;;
+        2|"")
+            LANG_CODE="zh"
+            ;;
+        *)
+            echo "Invalid choice, defaulting to Chinese"
+            LANG_CODE="zh"
+            ;;
+    esac
+}
+
 need_root() {
     if [ "${EUID}" -ne 0 ]; then
-        err "请使用管理员权限运行：sudo ./install.sh"
+        err_msg need_root
     fi
 }
 
@@ -105,15 +377,15 @@ detect_arch_and_set_url() {
             XDSRUN_PKG_ARCH="arm64"
             ;;
         *)
-            err "不支持的 CPU 架构：${ARCH}。当前仅支持 x86_64/amd64 和 aarch64/arm64。"
+            err_msg unsupported_arch arch="${ARCH}"
             ;;
     esac
 
     ZIP_FILE="${TMP_DIR}/xdsrun_${XDSRUN_VERSION}_linux_${XDSRUN_PKG_ARCH}.zip"
     XDSRUN_URL="https://github.com/NanCunChild/xdsrun-login/releases/download/v${XDSRUN_VERSION}/xdsrun_${XDSRUN_VERSION}_linux_${XDSRUN_PKG_ARCH}.zip"
 
-    log "检测到系统架构：${ARCH}，将使用安装包架构：${XDSRUN_PKG_ARCH}"
-    log "下载链接：${XDSRUN_URL}"
+    log_msg detected_arch arch="${ARCH}" pkg_arch="${XDSRUN_PKG_ARCH}"
+    log_msg download_url url="${XDSRUN_URL}"
 }
 
 install_packages() {
@@ -122,10 +394,10 @@ install_packages() {
     pm="$(detect_pkg_manager)"
 
     if [ "${pm}" = "unknown" ]; then
-        err "无法识别包管理器，请手动安装：${pkgs[*]}"
+        err_msg pkg_manager_unknown pkgs="${pkgs[*]}"
     fi
 
-    log "尝试安装缺失依赖：${pkgs[*]}"
+    log_msg installing_deps pkgs="${pkgs[*]}"
 
     case "${pm}" in
         apt)
@@ -180,9 +452,9 @@ ensure_deps() {
         install_packages "${missing[@]}"
     fi
 
-    command_exists wget || err "wget 安装失败或不可用"
-    command_exists unzip || err "unzip 安装失败或不可用"
-    command_exists crontab || err "crontab 不可用，请检查 cron/cronie 是否安装成功"
+    command_exists wget || err_msg wget_unavailable
+    command_exists unzip || err_msg unzip_unavailable
+    command_exists crontab || err_msg crontab_unavailable
 }
 
 enable_cron_service() {
@@ -214,18 +486,18 @@ parse_interval_to_cron() {
                 return 1
             fi
             CRON_EXPR="*/${num} * * * *"
-            INTERVAL_DESC="每 ${num} 分钟"
+            INTERVAL_DESC="$(render_msg interval_desc_minutes num="${num}")"
             ;;
         h)
             if [ "${num}" -gt 23 ]; then
                 return 1
             fi
             CRON_EXPR="0 */${num} * * *"
-            INTERVAL_DESC="每 ${num} 小时"
+            INTERVAL_DESC="$(render_msg interval_desc_hours num="${num}")"
             ;;
         d)
             CRON_EXPR="0 0 */${num} * *"
-            INTERVAL_DESC="每 ${num} 天"
+            INTERVAL_DESC="$(render_msg interval_desc_days num="${num}")"
             ;;
         *)
             return 1
@@ -237,36 +509,36 @@ parse_interval_to_cron() {
 
 prompt_config() {
     echo
-    read -r -p "请输入西电校园网用户名: " INPUT_USERNAME
+    read -r -p "$(render_msg username_prompt) " INPUT_USERNAME
 
     while [ -z "${INPUT_USERNAME}" ]; do
-        echo "用户名不能为空。"
-        read -r -p "请输入西电校园网用户名: " INPUT_USERNAME
+        printf '%s\n' "$(render_msg username_empty)"
+        read -r -p "$(render_msg username_prompt) " INPUT_USERNAME
     done
 
-    read -r -s -p "请输入西电校园网密码: " INPUT_PASSWORD
+    read -r -s -p "$(render_msg password_prompt) " INPUT_PASSWORD
     echo
 
     while [ -z "${INPUT_PASSWORD}" ]; do
-        echo "密码不能为空。"
-        read -r -s -p "请输入西电校园网密码: " INPUT_PASSWORD
+        printf '%s\n' "$(render_msg password_empty)"
+        read -r -s -p "$(render_msg password_prompt) " INPUT_PASSWORD
         echo
     done
 
     echo
-    echo "请输入 watchdog 执行间隔："
-    echo "  数字+时间单位（m、h、d）"
-    echo "  m 表示分钟 / h 表示小时 / d 表示天"
-    read -r -p "执行间隔 [默认: 5m]: " INPUT_INTERVAL
+    printf '%s\n' "$(render_msg interval_intro)"
+    printf '%s\n' "$(render_msg interval_format_hint)"
+    printf '%s\n' "$(render_msg interval_unit_hint)"
+    read -r -p "$(render_msg interval_prompt) " INPUT_INTERVAL
 
     if [ -z "${INPUT_INTERVAL}" ]; then
         INPUT_INTERVAL="5m"
     fi
 
     while ! parse_interval_to_cron "${INPUT_INTERVAL}"; do
-        echo "执行间隔格式错误。请输入类似 5m、2h、1d 的格式。"
-        echo "限制：分钟 1-59，小时 1-23，天为正整数。"
-        read -r -p "执行间隔 [默认: 5m]: " INPUT_INTERVAL
+        printf '%s\n' "$(render_msg interval_invalid)"
+        printf '%s\n' "$(render_msg interval_constraints)"
+        read -r -p "$(render_msg interval_prompt) " INPUT_INTERVAL
 
         if [ -z "${INPUT_INTERVAL}" ]; then
             INPUT_INTERVAL="5m"
@@ -278,30 +550,30 @@ install_xdsrun_bin() {
     mkdir -p "${XDSRUN_DIR}"
 
     if [ -f "${XDSRUN_BIN}" ]; then
-        log "检测到 xdsrun 已存在：${XDSRUN_BIN}"
+        log_msg xdsrun_exists path="${XDSRUN_BIN}"
 
-        if ask_yes_no "是否重新下载并安装 xdsrun？"; then
-            log "将重新安装 xdsrun"
+        if ask_yes_no "$(render_msg reinstall_xdsrun_prompt)"; then
+            log_msg reinstalling_xdsrun
             rm -f "${XDSRUN_BIN}"
         else
-            log "跳过 xdsrun 重新安装，仅确保其具有可执行权限"
+            log_msg skip_reinstall_xdsrun
             chmod +x "${XDSRUN_BIN}"
             return
         fi
     fi
 
-    log "下载 xdsrun：${XDSRUN_URL}"
+    log_msg downloading_xdsrun url="${XDSRUN_URL}"
     wget -O "${ZIP_FILE}" "${XDSRUN_URL}"
 
     local extract_dir
     extract_dir="$(mktemp -d /tmp/xdsrun_extract.XXXXXX)"
 
-    log "解压：${ZIP_FILE}"
+    log_msg extracting_zip path="${ZIP_FILE}"
     unzip -o "${ZIP_FILE}" -d "${extract_dir}" >/dev/null
 
     if [ ! -f "${extract_dir}/xdsrun" ]; then
         rm -rf "${extract_dir}"
-        err "解压后没有找到 xdsrun 二进制程序"
+        err_msg xdsrun_not_found_after_extract
     fi
 
     mv "${extract_dir}/xdsrun" "${XDSRUN_BIN}"
@@ -309,26 +581,26 @@ install_xdsrun_bin() {
 
     rm -rf "${extract_dir}"
 
-    log "xdsrun 已安装到：${XDSRUN_BIN}"
+    log_msg xdsrun_installed path="${XDSRUN_BIN}"
 }
 
 write_watchdog_config() {
-    log "写入 watchdog 配置文件：${WATCHDOG_CONFIG}"
+    log_msg writing_watchdog_config path="${WATCHDOG_CONFIG}"
 
     cat > "${WATCHDOG_CONFIG}" <<EOF
-# xdsrun-watchdog 配置文件
-# 由 install.sh 生成
+$(render_msg config_header)
+$(render_msg config_generated_by)
 
-# ====== PING 配置 ======
+$(render_msg config_ping_section)
 PING_TARGET="223.5.5.5"
 PING_COUNT=3
 PING_TIMEOUT=3
 
-# ====== 登录配置 ======
+$(render_msg config_login_section)
 USERNAME="${INPUT_USERNAME}"
 PASSWORD="${INPUT_PASSWORD}"
 
-# ====== LOG 配置 ======
+$(render_msg config_log_section)
 LOG_DIR="${XDSRUN_DIR}/log"
 EOF
 
@@ -337,19 +609,19 @@ EOF
 
 write_watchdog_script() {
     if [ -f "${WATCHDOG_SCRIPT}" ]; then
-        log "检测到 xdsrun-watchdog 已存在：${WATCHDOG_SCRIPT}"
+        log_msg watchdog_exists path="${WATCHDOG_SCRIPT}"
 
-        if ask_yes_no "是否重新生成 xdsrun-watchdog 脚本？"; then
-            log "将重新生成 xdsrun-watchdog"
+        if ask_yes_no "$(render_msg regenerate_watchdog_prompt)"; then
+            log_msg regenerating_watchdog
             rm -f "${WATCHDOG_SCRIPT}"
         else
-            log "跳过 xdsrun-watchdog 重新生成，仅确保其具有可执行权限"
+            log_msg skip_regenerate_watchdog
             chmod +x "${WATCHDOG_SCRIPT}"
             return
         fi
     fi
 
-    log "写入 watchdog 脚本：${WATCHDOG_SCRIPT}"
+    log_msg writing_watchdog_script path="${WATCHDOG_SCRIPT}"
 
     cat > "${WATCHDOG_SCRIPT}" <<EOF
 #!/usr/bin/env bash
@@ -357,67 +629,67 @@ set -euo pipefail
 
 # ============================================================
 # xdsrun-watchdog
-# 自动检测网络，断网时调用 xdsrun 登录
+$(render_msg watchdog_comment)
 # ============================================================
 
-# ====== 脚本内置路径配置 ======
+$(render_msg watchdog_paths_section)
 XDSRUN_BIN="${XDSRUN_BIN}"
 CONFIG_FILE="${WATCHDOG_CONFIG}"
 
-# ====== 加载配置文件 ======
+$(render_msg watchdog_load_config)
 if [ -f "\${CONFIG_FILE}" ]; then
     # shellcheck disable=SC1090
     source "\${CONFIG_FILE}"
 else
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] 配置文件不存在：\${CONFIG_FILE}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_config_missing)" >&2
     exit 1
 fi
 
-# ====== 基础检查 ======
+$(render_msg watchdog_basic_checks)
 if [ -z "\${PING_TARGET:-}" ]; then
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] PING_TARGET 为空，请检查配置文件：\${CONFIG_FILE}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_ping_target_empty)" >&2
     exit 1
 fi
 
 if [ -z "\${PING_COUNT:-}" ]; then
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] PING_COUNT 为空，请检查配置文件：\${CONFIG_FILE}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_ping_count_empty)" >&2
     exit 1
 fi
 
 if [ -z "\${PING_TIMEOUT:-}" ]; then
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] PING_TIMEOUT 为空，请检查配置文件：\${CONFIG_FILE}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_ping_timeout_empty)" >&2
     exit 1
 fi
 
 if [ -z "\${USERNAME:-}" ] || [ -z "\${PASSWORD:-}" ]; then
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] USERNAME 或 PASSWORD 为空，请检查配置文件：\${CONFIG_FILE}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_username_password_empty)" >&2
     exit 1
 fi
 
 if [ -z "\${LOG_DIR:-}" ]; then
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] LOG_DIR 为空，请检查配置文件：\${CONFIG_FILE}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_log_dir_empty)" >&2
     exit 1
 fi
 
 if [ ! -x "\${XDSRUN_BIN}" ]; then
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] xdsrun 不存在或不可执行：\${XDSRUN_BIN}" >&2
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] $(render_msg watchdog_bin_missing)" >&2
     exit 1
 fi
 
-# ====== 检测网络是否在线 ======
+$(render_msg watchdog_network_check)
 if ping -c "\${PING_COUNT}" -W "\${PING_TIMEOUT}" "\${PING_TARGET}" >/dev/null 2>&1; then
     exit 0
 fi
 
-# ====== LOG 配置 ======
+$(render_msg watchdog_log_section)
 MONTH_STR="\$(date '+%Y-%m')"
 LOGFILE="\${LOG_DIR}/xdsrun_\${MONTH_STR}.log"
 
-# ====== 日志准备 ======
+$(render_msg watchdog_prepare_log)
 mkdir -p "\${LOG_DIR}"
 timestamp="\$(date '+%Y-%m-%d %H:%M:%S')"
 
-# ====== 登录西电校园网 ======
+$(render_msg watchdog_login)
 output="\$("\${XDSRUN_BIN}" -u "\${USERNAME}" -p "\${PASSWORD}" 2>&1)"
 echo "[\${timestamp}] \${output}" >> "\${LOGFILE}"
 EOF
@@ -426,7 +698,7 @@ EOF
 }
 
 install_cron() {
-    log "配置 root crontab，${INTERVAL_DESC}执行一次 watchdog"
+    log_msg cron_configuring interval="${INTERVAL_DESC}"
 
     local cron_line
     cron_line="${CRON_EXPR} ${WATCHDOG_SCRIPT} >/dev/null 2>&1"
@@ -451,10 +723,11 @@ install_cron() {
 
     rm -f "${current_cron}" "${current_cron}.bak"
 
-    log "crontab 已配置：${cron_line}"
+    log_msg cron_configured line="${cron_line}"
 }
 
 main() {
+    select_language
     need_root
     detect_arch_and_set_url
     ensure_deps
@@ -469,20 +742,20 @@ main() {
     install_cron
 
     echo
-    log "安装完成。"
-    echo "系统架构：${ARCH}"
-    echo "安装包架构：${XDSRUN_PKG_ARCH}"
-    echo "下载链接：${XDSRUN_URL}"
-    echo "xdsrun 程序：${XDSRUN_BIN}"
-    echo "watchdog 脚本：${WATCHDOG_SCRIPT}"
-    echo "watchdog 配置：${WATCHDOG_CONFIG}"
-    echo "日志目录：${XDSRUN_DIR}/log"
-    echo "执行间隔：${INTERVAL_DESC}"
+    log_msg installation_complete
+    printf '%s\n' "$(render_msg system_arch arch="${ARCH}")"
+    printf '%s\n' "$(render_msg package_arch arch="${XDSRUN_PKG_ARCH}")"
+    printf '%s\n' "$(render_msg download_url url="${XDSRUN_URL}")"
+    printf '%s\n' "$(render_msg xdsrun_binary path="${XDSRUN_BIN}")"
+    printf '%s\n' "$(render_msg watchdog_script_label path="${WATCHDOG_SCRIPT}")"
+    printf '%s\n' "$(render_msg watchdog_config_label path="${WATCHDOG_CONFIG}")"
+    printf '%s\n' "$(render_msg log_dir_label path="${XDSRUN_DIR}/log")"
+    printf '%s\n' "$(render_msg execution_interval_label interval="${INTERVAL_DESC}")"
     echo
-    echo "可手动测试："
+    printf '%s\n' "$(render_msg manual_test)"
     echo "  sudo ${WATCHDOG_SCRIPT}"
     echo
-    echo "查看 root crontab："
+    printf '%s\n' "$(render_msg view_root_crontab)"
     echo "  sudo crontab -l"
 }
 
