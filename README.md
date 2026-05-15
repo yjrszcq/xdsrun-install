@@ -483,9 +483,15 @@ Re-generate xdsrun-watchdog script? [y/N]:
 
 ## 卸载方法
 
-如果需要卸载，推荐直接使用安装脚本参数一键卸载。
+如果需要卸载，推荐直接使用 `curl` 远程脚本一键卸载。
 
-### 方法一：使用参数一键卸载（推荐）
+### 方法一：使用 `curl` 远程脚本一键卸载（推荐）
+
+```bash
+curl -fsSL 'https://raw.githubusercontent.com/yjrszcq/xdsrun-auto-login/refs/heads/main/install.sh' | sudo bash -s -- --uninstall
+```
+
+### 方法二：使用本地脚本参数一键卸载
 
 ```bash
 sudo ./install.sh --uninstall
@@ -497,7 +503,7 @@ sudo ./install.sh --uninstall
 sudo ./install.sh -u
 ```
 
-执行后会先再次确认是否卸载，直接回车默认取消。
+无论是远程脚本还是本地脚本，执行后都会先再次确认是否卸载，直接回车默认取消。
 
 该命令会自动执行以下操作：
 
@@ -505,7 +511,7 @@ sudo ./install.sh -u
 2. 删除 `/usr/local/bin/xdsrun` 和 `/usr/local/bin/xdsrun-watchdog` 软链接；
 3. 删除安装目录 `/opt/xdsrun`。
 
-### 方法二：手动卸载
+### 方法三：手动卸载
 
 如果你不想使用参数卸载，也可以按以下步骤手动操作。
 
