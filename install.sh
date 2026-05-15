@@ -355,9 +355,24 @@ warn_msg() {
 ask_yes_no() {
     local prompt="$1"
     local answer
+    local input_path="/dev/stdin"
+
+    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+        input_path="/dev/tty"
+    fi
 
     while true; do
-        read -r -p "${prompt} [y/N]: " answer
+        if [ "${input_path}" = "/dev/tty" ]; then
+            printf '%s [y/N]: ' "${prompt}" > /dev/tty
+            if ! IFS= read -r answer < /dev/tty; then
+                return 1
+            fi
+        else
+            if ! read -r -p "${prompt} [y/N]: " answer; then
+                return 1
+            fi
+        fi
+
         case "${answer}" in
             y|Y|yes|YES|Yes)
                 return 0
