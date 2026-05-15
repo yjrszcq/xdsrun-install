@@ -39,12 +39,15 @@ INPUT_PASSWORD=""
 # ============================================================
 
 msg() {
-    case "$1_${LANG_CODE}" in
+    case "$1_${LANG_CODE:-zh}" in
         invalid_yes_no_en) printf '%s\n' 'Please enter y or n.' ;;
         invalid_yes_no_zh) printf '%s\n' '请输入 y 或 n。' ;;
 
         need_root_en) printf '%s\n' 'Please run with root privileges: sudo ./install.sh' ;;
         need_root_zh) printf '%s\n' '请使用管理员权限运行：sudo ./install.sh' ;;
+
+        unknown_argument_en) printf '%s\n' 'Unsupported argument: {arg}' ;;
+        unknown_argument_zh) printf '%s\n' '不支持的参数：{arg}' ;;
 
         unsupported_arch_en) printf '%s\n' 'Unsupported CPU architecture: {arch}. Only x86_64/amd64 and aarch64/arm64 are supported.' ;;
         unsupported_arch_zh) printf '%s\n' '不支持的 CPU 架构：{arch}。当前仅支持 x86_64/amd64 和 aarch64/arm64。' ;;
@@ -69,6 +72,36 @@ msg() {
 
         crontab_unavailable_en) printf '%s\n' 'crontab is unavailable. Please check if cron/cronie is installed.' ;;
         crontab_unavailable_zh) printf '%s\n' 'crontab 不可用，请检查 cron/cronie 是否安装成功' ;;
+
+        uninstall_start_en) printf '%s\n' 'Starting one-click uninstall.' ;;
+        uninstall_start_zh) printf '%s\n' '开始一键卸载。' ;;
+
+        uninstall_confirm_prompt_en) printf '%s\n' 'Confirm uninstall xdsrun, watchdog, symlinks, and related crontab entries?' ;;
+        uninstall_confirm_prompt_zh) printf '%s\n' '确认卸载 xdsrun、watchdog、软链接以及相关 crontab 记录？' ;;
+
+        uninstall_cancelled_en) printf '%s\n' 'Uninstall cancelled.' ;;
+        uninstall_cancelled_zh) printf '%s\n' '已取消卸载。' ;;
+
+        uninstall_remove_cron_en) printf '%s\n' 'Removing watchdog crontab entries.' ;;
+        uninstall_remove_cron_zh) printf '%s\n' '正在删除 watchdog 的 crontab 记录。' ;;
+
+        uninstall_crontab_skipped_en) printf '%s\n' 'crontab is unavailable, skipping crontab cleanup.' ;;
+        uninstall_crontab_skipped_zh) printf '%s\n' 'crontab 不可用，已跳过 crontab 清理。' ;;
+
+        uninstall_crontab_done_en) printf '%s\n' 'watchdog crontab entries removed.' ;;
+        uninstall_crontab_done_zh) printf '%s\n' 'watchdog 的 crontab 记录已删除。' ;;
+
+        uninstall_remove_link_done_en) printf '%s\n' 'Removed symlink: {path}' ;;
+        uninstall_remove_link_done_zh) printf '%s\n' '已删除软链接：{path}' ;;
+
+        uninstall_remove_link_skipped_en) printf '%s\n' 'Path exists but is not a symlink, skipped: {path}' ;;
+        uninstall_remove_link_skipped_zh) printf '%s\n' '路径存在但不是软链接，已跳过：{path}' ;;
+
+        uninstall_remove_dir_done_en) printf '%s\n' 'Removed installation directory: {path}' ;;
+        uninstall_remove_dir_done_zh) printf '%s\n' '已删除安装目录：{path}' ;;
+
+        uninstall_complete_en) printf '%s\n' 'Uninstall complete.' ;;
+        uninstall_complete_zh) printf '%s\n' '卸载完成。' ;;
 
         username_prompt_en) printf '%s\n' 'Enter Xidian campus network username:' ;;
         username_prompt_zh) printf '%s\n' '请输入西电校园网用户名:' ;;
@@ -361,6 +394,78 @@ ensure_bin_link() {
 
     ln -sfn "${target_path}" "${link_path}"
     log_msg symlink_ready link="${link_path}" target="${target_path}"
+}
+
+parse_args() {
+    ACTION="install"
+
+    local arg
+    for arg in "$@"; do
+        case "${arg}" in
+            -u|--uninstall)
+                ACTION="uninstall"
+                ;;
+            *)
+                err_msg unknown_argument arg="${arg}"
+                ;;
+        esac
+    done
+}
+
+remove_watchdog_cron() {
+    if ! command_exists crontab; then
+        warn_msg uninstall_crontab_skipped
+        return
+    fi
+
+    log_msg uninstall_remove_cron
+
+    local current_cron
+    current_cron="$(mktemp /tmp/xdsrun_cron_remove.XXXXXX)"
+
+    crontab -l 2>/dev/null > "${current_cron}" || true
+
+    sed -i.bak "/${CRON_MARK_BEGIN}/,/${CRON_MARK_END}/d" "${current_cron}"
+
+    grep -v -F "${WATCHDOG_SCRIPT}" "${current_cron}" > "${current_cron}.new" || true
+    mv "${current_cron}.new" "${current_cron}"
+
+    crontab "${current_cron}"
+
+    rm -f "${current_cron}" "${current_cron}.bak"
+
+    log_msg uninstall_crontab_done
+}
+
+remove_managed_link() {
+    local link_path="$1"
+
+    if [ -L "${link_path}" ]; then
+        rm -f "${link_path}"
+        log_msg uninstall_remove_link_done path="${link_path}"
+    elif [ -e "${link_path}" ]; then
+        warn_msg uninstall_remove_link_skipped path="${link_path}"
+    fi
+}
+
+uninstall_all() {
+    log_msg uninstall_start
+
+    if ! ask_yes_no "$(render_msg uninstall_confirm_prompt)"; then
+        log_msg uninstall_cancelled
+        return
+    fi
+
+    remove_watchdog_cron
+    remove_managed_link "${XDSRUN_BIN_LINK}"
+    remove_managed_link "${WATCHDOG_BIN_LINK}"
+
+    if [ -e "${XDSRUN_DIR}" ]; then
+        rm -rf "${XDSRUN_DIR}"
+        log_msg uninstall_remove_dir_done path="${XDSRUN_DIR}"
+    fi
+
+    log_msg uninstall_complete
 }
 
 select_language() {
@@ -781,8 +886,19 @@ install_cron() {
 }
 
 main() {
-    select_language
+    parse_args "$@"
+
+    if [ "${ACTION}" = "install" ]; then
+        select_language
+    fi
+
     need_root
+
+    if [ "${ACTION}" = "uninstall" ]; then
+        uninstall_all
+        return
+    fi
+
     detect_arch_and_set_url
     ensure_deps
     enable_cron_service

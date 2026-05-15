@@ -483,7 +483,31 @@ Re-generate xdsrun-watchdog script? [y/N]:
 
 ## 卸载方法
 
-如果需要卸载，可以按以下步骤操作。
+如果需要卸载，推荐直接使用安装脚本参数一键卸载。
+
+### 方法一：使用参数一键卸载（推荐）
+
+```bash
+sudo ./install.sh --uninstall
+```
+
+也支持短参数：
+
+```bash
+sudo ./install.sh -u
+```
+
+执行后会先再次确认是否卸载，直接回车默认取消。
+
+该命令会自动执行以下操作：
+
+1. 删除 root 用户 crontab 中由本脚本写入的 watchdog 定时任务；
+2. 删除 `/usr/local/bin/xdsrun` 和 `/usr/local/bin/xdsrun-watchdog` 软链接；
+3. 删除安装目录 `/opt/xdsrun`。
+
+### 方法二：手动卸载
+
+如果你不想使用参数卸载，也可以按以下步骤手动操作。
 
 ### 1. 删除 crontab 任务
 
