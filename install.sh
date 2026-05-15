@@ -339,6 +339,30 @@ ask_yes_no() {
     done
 }
 
+ensure_bin_link() {
+    local target_path="$1"
+    local link_path="$2"
+
+    mkdir -p "$(dirname "${link_path}")"
+
+    if [ -d "${link_path}" ] && [ ! -L "${link_path}" ]; then
+        warn_msg directory_conflict path="${link_path}"
+        return
+    fi
+
+    if [ -e "${link_path}" ] && [ ! -L "${link_path}" ]; then
+        warn_msg file_conflict path="${link_path}"
+
+        if ! ask_yes_no "$(render_msg replace_file_prompt path="${link_path}")"; then
+            warn_msg symlink_skipped path="${link_path}"
+            return
+        fi
+    fi
+
+    ln -sfn "${target_path}" "${link_path}"
+    log_msg symlink_ready link="${link_path}" target="${target_path}"
+}
+
 select_language() {
     local lang
 
@@ -754,30 +778,6 @@ install_cron() {
     rm -f "${current_cron}" "${current_cron}.bak"
 
     log_msg cron_configured line="${cron_line}"
-}
-
-ensure_bin_link() {
-    local target_path="$1"
-    local link_path="$2"
-
-    mkdir -p "$(dirname "${link_path}")"
-
-    if [ -d "${link_path}" ] && [ ! -L "${link_path}" ]; then
-        warn_msg directory_conflict path="${link_path}"
-        return
-    fi
-
-    if [ -e "${link_path}" ] && [ ! -L "${link_path}" ]; then
-        warn_msg file_conflict path="${link_path}"
-
-        if ! ask_yes_no "$(render_msg replace_file_prompt path="${link_path}")"; then
-            warn_msg symlink_skipped path="${link_path}"
-            return
-        fi
-    fi
-
-    ln -sfn "${target_path}" "${link_path}"
-    log_msg symlink_ready link="${link_path}" target="${target_path}"
 }
 
 main() {
