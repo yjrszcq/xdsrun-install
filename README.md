@@ -485,7 +485,7 @@ Re-generate xdsrun-watchdog script? [y/N]:
 
 如果需要卸载，推荐直接使用 `curl` 远程脚本一键卸载。
 
-### 方法一：使用 `curl` 远程脚本一键卸载（推荐）
+### 方法一：一键卸载命令（推荐）
 
 ```bash
 curl -fsSL 'https://raw.githubusercontent.com/yjrszcq/xdsrun-auto-login/refs/heads/main/install.sh' | sudo bash -s -- --uninstall
