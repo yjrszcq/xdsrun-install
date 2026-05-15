@@ -10,10 +10,13 @@ XDSRUN_DIR="/opt/xdsrun"
 XDSRUN_VERSION="1.1.3"
 
 TMP_DIR="/tmp"
+BIN_LINK_DIR="/usr/local/bin"
 
 XDSRUN_BIN="${XDSRUN_DIR}/xdsrun"
 WATCHDOG_SCRIPT="${XDSRUN_DIR}/xdsrun-watchdog"
 WATCHDOG_CONFIG="${XDSRUN_DIR}/xdsrun-watchdog.conf"
+XDSRUN_BIN_LINK="${BIN_LINK_DIR}/xdsrun"
+WATCHDOG_BIN_LINK="${BIN_LINK_DIR}/xdsrun-watchdog"
 
 CRON_MARK_BEGIN="# >>> xdsrun-watchdog cron >>>"
 CRON_MARK_END="# <<< xdsrun-watchdog cron <<<"
@@ -154,6 +157,21 @@ msg() {
         cron_configured_en) printf '%s\n' 'crontab configured: {line}' ;;
         cron_configured_zh) printf '%s\n' 'crontab 已配置：{line}' ;;
 
+        symlink_ready_en) printf '%s\n' 'Symlink ready: {link} -> {target}' ;;
+        symlink_ready_zh) printf '%s\n' '软链接已就绪：{link} -> {target}' ;;
+
+        file_conflict_en) printf '%s\n' 'Existing file blocks symlink creation: {path}' ;;
+        file_conflict_zh) printf '%s\n' '已有文件阻止创建软链接：{path}' ;;
+
+        replace_file_prompt_en) printf '%s\n' 'Replace the existing file at {path} with a symlink?' ;;
+        replace_file_prompt_zh) printf '%s\n' '是否将现有文件 {path} 替换为软链接？' ;;
+
+        directory_conflict_en) printf '%s\n' 'Existing directory blocks symlink creation: {path}' ;;
+        directory_conflict_zh) printf '%s\n' '已有目录阻止创建软链接：{path}' ;;
+
+        symlink_skipped_en) printf '%s\n' 'Skipped symlink creation: {path}' ;;
+        symlink_skipped_zh) printf '%s\n' '已跳过软链接创建：{path}' ;;
+
         installation_complete_en) printf '%s\n' 'Installation complete.' ;;
         installation_complete_zh) printf '%s\n' '安装完成。' ;;
 
@@ -166,8 +184,14 @@ msg() {
         xdsrun_binary_en) printf '%s\n' 'xdsrun binary: {path}' ;;
         xdsrun_binary_zh) printf '%s\n' 'xdsrun 程序：{path}' ;;
 
+        xdsrun_symlink_label_en) printf '%s\n' 'xdsrun symlink: {path}' ;;
+        xdsrun_symlink_label_zh) printf '%s\n' 'xdsrun 软链接：{path}' ;;
+
         watchdog_script_label_en) printf '%s\n' 'watchdog script: {path}' ;;
         watchdog_script_label_zh) printf '%s\n' 'watchdog 脚本：{path}' ;;
+
+        watchdog_symlink_label_en) printf '%s\n' 'watchdog symlink: {path}' ;;
+        watchdog_symlink_label_zh) printf '%s\n' 'watchdog 软链接：{path}' ;;
 
         watchdog_config_label_en) printf '%s\n' 'watchdog config: {path}' ;;
         watchdog_config_label_zh) printf '%s\n' 'watchdog 配置：{path}' ;;
@@ -289,6 +313,10 @@ log_msg() {
 
 err_msg() {
     err "$(render_msg "$@")"
+}
+
+warn_msg() {
+    warn "$(render_msg "$@")"
 }
 
 ask_yes_no() {
@@ -724,6 +752,35 @@ install_cron() {
     log_msg cron_configured line="${cron_line}"
 }
 
+ensure_bin_link() {
+    local target_path="$1"
+    local link_path="$2"
+
+    mkdir -p "$(dirname "${link_path}")"
+
+    if [ -d "${link_path}" ] && [ ! -L "${link_path}" ]; then
+        warn_msg directory_conflict path="${link_path}"
+        return
+    fi
+
+    if [ -e "${link_path}" ] && [ ! -L "${link_path}" ]; then
+        warn_msg file_conflict path="${link_path}"
+
+        if ! ask_yes_no "$(render_msg replace_file_prompt path="${link_path}")"; then
+            warn_msg symlink_skipped path="${link_path}"
+            return
+        fi
+    fi
+
+    ln -sfn "${target_path}" "${link_path}"
+    log_msg symlink_ready link="${link_path}" target="${target_path}"
+}
+
+install_bin_links() {
+    ensure_bin_link "${XDSRUN_BIN}" "${XDSRUN_BIN_LINK}"
+    ensure_bin_link "${WATCHDOG_SCRIPT}" "${WATCHDOG_BIN_LINK}"
+}
+
 main() {
     select_language
     need_root
@@ -738,6 +795,7 @@ main() {
 
     write_watchdog_config
     install_cron
+    install_bin_links
 
     echo
     log_msg installation_complete
@@ -745,7 +803,9 @@ main() {
     printf '%s\n' "$(render_msg package_arch arch="${XDSRUN_PKG_ARCH}")"
     printf '%s\n' "$(render_msg download_url url="${XDSRUN_URL}")"
     printf '%s\n' "$(render_msg xdsrun_binary path="${XDSRUN_BIN}")"
+    printf '%s\n' "$(render_msg xdsrun_symlink_label path="${XDSRUN_BIN_LINK}")"
     printf '%s\n' "$(render_msg watchdog_script_label path="${WATCHDOG_SCRIPT}")"
+    printf '%s\n' "$(render_msg watchdog_symlink_label path="${WATCHDOG_BIN_LINK}")"
     printf '%s\n' "$(render_msg watchdog_config_label path="${WATCHDOG_CONFIG}")"
     printf '%s\n' "$(render_msg log_dir_label path="${XDSRUN_DIR}/log")"
     printf '%s\n' "$(render_msg execution_interval_label interval="${INTERVAL_DESC}")"

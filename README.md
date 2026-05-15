@@ -41,7 +41,14 @@ sudo bash -c "$(curl -fsSL 'https://raw.githubusercontent.com/yjrszcq/xdsrun-aut
    ```
 
 9. 配置 root 用户的 `crontab`，定时执行 watchdog；
-10. 根据所选语言生成对应注释和提示文案的 watchdog 脚本与配置文件。
+10. 在 `/usr/local/bin` 创建命令软链接：
+
+   ```bash
+   /usr/local/bin/xdsrun
+   /usr/local/bin/xdsrun-watchdog
+   ```
+
+11. 根据所选语言生成对应注释和提示文案的 watchdog 脚本与配置文件。
 
 ---
 
@@ -56,6 +63,13 @@ sudo bash -c "$(curl -fsSL 'https://raw.githubusercontent.com/yjrszcq/xdsrun-aut
 ├── xdsrun-watchdog.conf
 └── log/
     └── xdsrun_YYYY-MM.log
+```
+
+另外，脚本还会创建以下命令入口：
+
+```text
+/usr/local/bin/xdsrun          -> /opt/xdsrun/xdsrun
+/usr/local/bin/xdsrun-watchdog -> /opt/xdsrun/xdsrun-watchdog
 ```
 
 说明：
@@ -89,6 +103,13 @@ chmod +x install.sh
 
 ```bash
 sudo ./install.sh
+```
+
+安装完成后，通常可以直接通过以下命令调用：
+
+```bash
+xdsrun
+xdsrun-watchdog
 ```
 
 ---
@@ -343,6 +364,12 @@ PING_TARGET="223.5.5.5"
 可以直接执行：
 
 ```bash
+sudo xdsrun-watchdog
+```
+
+等价命令仍然是：
+
+```bash
 sudo /opt/xdsrun/xdsrun-watchdog
 ```
 
@@ -432,6 +459,21 @@ Re-generate xdsrun-watchdog script? [y/N]:
 
 因此一般不会产生重复的定时任务。
 
+### 软链接处理
+
+脚本还会处理以下软链接：
+
+```text
+/usr/local/bin/xdsrun
+/usr/local/bin/xdsrun-watchdog
+```
+
+行为如下：
+
+1. 如果目标位置已经是软链接，脚本会直接更新它，使其指向当前安装目录下的目标；
+2. 如果同名普通文件已存在，脚本会询问是否替换为软链接；
+3. 如果同名目录已存在，脚本不会覆盖该目录。
+
 ---
 
 ## 卸载方法
@@ -460,7 +502,13 @@ sudo crontab -e
 /opt/xdsrun/xdsrun-watchdog
 ```
 
-### 2. 删除安装目录
+### 2. 删除软链接
+
+```bash
+sudo rm -f /usr/local/bin/xdsrun /usr/local/bin/xdsrun-watchdog
+```
+
+### 3. 删除安装目录
 
 ```bash
 sudo rm -rf /opt/xdsrun
@@ -586,7 +634,7 @@ XDSRUN_DIR="/usr/local/xdsrun"
 sudo ./install.sh
 ```
 
-生成的 `xdsrun-watchdog`、配置文件路径、crontab 路径都会跟随该配置变化。
+生成的 `xdsrun-watchdog`、配置文件路径、crontab 路径，以及 `/usr/local/bin` 下两个软链接的目标都会跟随该配置变化。
 
 ---
 
@@ -597,7 +645,8 @@ sudo ./install.sh
 3. 如果修改了 crontab 执行间隔，建议使用 `sudo crontab -l` 检查是否生效；
 4. 如果 watchdog 一直没有日志，可能是因为网络一直正常，脚本 ping 成功后直接退出；
 5. 如果日志中出现登录失败，请检查账号、密码以及 `xdsrun` 是否可正常使用；
-6. 语言选择只影响脚本提示、注释和错误文案，不影响配置项名称、命令路径和 crontab 行格式。
+6. 语言选择只影响脚本提示、注释和错误文案，不影响配置项名称、命令路径和 crontab 行格式；
+7. `/usr/local/bin` 下的两个软链接只是便捷入口，定时任务仍然使用安装目录下的绝对路径。
 
 ## 致谢
 
