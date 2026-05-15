@@ -709,7 +709,6 @@ install_xdsrun_bin() {
 
         if ask_yes_no "$(render_msg reinstall_xdsrun_prompt)"; then
             log_msg reinstalling_xdsrun
-            rm -f "${XDSRUN_BIN}"
         else
             log_msg skip_reinstall_xdsrun
             chmod +x "${XDSRUN_BIN}"
@@ -732,8 +731,13 @@ install_xdsrun_bin() {
         err_msg xdsrun_not_found_after_extract
     fi
 
-    mv "${extract_dir}/xdsrun" "${XDSRUN_BIN}"
-    chmod +x "${XDSRUN_BIN}"
+    local staged_bin
+    staged_bin="${XDSRUN_DIR}/.xdsrun.new.$$"
+
+    rm -f "${staged_bin}"
+    cp "${extract_dir}/xdsrun" "${staged_bin}"
+    chmod +x "${staged_bin}"
+    mv -f "${staged_bin}" "${XDSRUN_BIN}"
 
     rm -rf "${extract_dir}"
 
