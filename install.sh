@@ -584,6 +584,7 @@ install_xdsrun_bin() {
         else
             log_msg skip_reinstall_xdsrun
             chmod +x "${XDSRUN_BIN}"
+            ensure_bin_link "${XDSRUN_BIN}" "${XDSRUN_BIN_LINK}"
             return
         fi
     fi
@@ -608,6 +609,7 @@ install_xdsrun_bin() {
     rm -rf "${extract_dir}"
 
     log_msg xdsrun_installed path="${XDSRUN_BIN}"
+    ensure_bin_link "${XDSRUN_BIN}" "${XDSRUN_BIN_LINK}"
 }
 
 write_watchdog_config() {
@@ -643,6 +645,7 @@ write_watchdog_script() {
         else
             log_msg skip_regenerate_watchdog
             chmod +x "${WATCHDOG_SCRIPT}"
+            ensure_bin_link "${WATCHDOG_SCRIPT}" "${WATCHDOG_BIN_LINK}"
             return
         fi
     fi
@@ -721,6 +724,7 @@ echo "[\${timestamp}] \${output}" >> "\${LOGFILE}"
 EOF
 
     chmod +x "${WATCHDOG_SCRIPT}"
+    ensure_bin_link "${WATCHDOG_SCRIPT}" "${WATCHDOG_BIN_LINK}"
 }
 
 install_cron() {
@@ -776,11 +780,6 @@ ensure_bin_link() {
     log_msg symlink_ready link="${link_path}" target="${target_path}"
 }
 
-install_bin_links() {
-    ensure_bin_link "${XDSRUN_BIN}" "${XDSRUN_BIN_LINK}"
-    ensure_bin_link "${WATCHDOG_SCRIPT}" "${WATCHDOG_BIN_LINK}"
-}
-
 main() {
     select_language
     need_root
@@ -795,7 +794,6 @@ main() {
 
     write_watchdog_config
     install_cron
-    install_bin_links
 
     echo
     log_msg installation_complete

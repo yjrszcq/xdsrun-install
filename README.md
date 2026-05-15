@@ -28,27 +28,32 @@ sudo bash -c "$(curl -fsSL 'https://raw.githubusercontent.com/yjrszcq/xdsrun-aut
    /opt/xdsrun
    ```
 
-7. 生成 watchdog 脚本：
+7. 为 `xdsrun` 创建命令软链接：
+
+   ```bash
+   /usr/local/bin/xdsrun
+   ```
+
+8. 生成 watchdog 脚本：
 
    ```bash
    /opt/xdsrun/xdsrun-watchdog
    ```
 
-8. 生成 watchdog 配置文件：
+9. 为 `xdsrun-watchdog` 创建命令软链接：
+
+   ```bash
+   /usr/local/bin/xdsrun-watchdog
+   ```
+
+10. 生成 watchdog 配置文件：
 
    ```bash
    /opt/xdsrun/xdsrun-watchdog.conf
    ```
 
-9. 配置 root 用户的 `crontab`，定时执行 watchdog；
-10. 在 `/usr/local/bin` 创建命令软链接：
-
-   ```bash
-   /usr/local/bin/xdsrun
-   /usr/local/bin/xdsrun-watchdog
-   ```
-
-11. 根据所选语言生成对应注释和提示文案的 watchdog 脚本与配置文件。
+11. 配置 root 用户的 `crontab`，定时执行 watchdog；
+12. 根据所选语言生成对应注释和提示文案的 watchdog 脚本与配置文件。
 
 ---
 
